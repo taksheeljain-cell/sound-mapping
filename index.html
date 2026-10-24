@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Sound Map — A sound-based maze exploration game inspired by Pac-Man. Navigate using audio cues to find hidden sound sources.">
+  <title>Sound Map — A Sound Exploration Game</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* ===== RESET & BASE ===== */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-1: #F3E9D7; --bg-2: #E9DDC7;
+      --wall: #8B7355; --wall-hi: #A39178; --wall-lo: #6B5840;
+      --path: #F5EDE0;
+      --player: #2D6A4F; --player-glow: rgba(45,106,79,0.5);
+      --red: #E63946;
+      --text: #3D2B1F; --text2: #8B7355;
+      --card: rgba(255,255,255,0.28); --card-b: rgba(255,255,255,0.38);
+      --btn: rgba(255,255,255,0.32); --btn-h: rgba(255,255,255,0.52);
+      --accent: #D4A373; --accent2: #C08B5C;
+      --circle-c: rgba(139,115,85,0.07);
+      --overlay: rgba(243,233,215,0.85);
+    }
+
+    body.dark {
+      --bg-1: #18263D; --bg-2: #22324D;
+      --wall: #2C4066; --wall-hi: #3A5080; --wall-lo: #1A2D4A;
+      --path: #0F1923;
+      --player: #00B4D8; --player-glow: rgba(0,180,216,0.5);
+      --red: #FF6B6B;
+      --text: #E0E7EF; --text2: #8B9BB5;
+      --card: rgba(0,0,0,0.32); --card-b: rgba(255,255,255,0.08);
+      --btn: rgba(255,255,255,0.08); --btn-h: rgba(255,255,255,0.16);
+      --accent: #4CC9F0; --accent2: #00B4D8;
+      --circle-c: rgba(76,201,240,0.05);
+      --overlay: rgba(24,38,61,0.88);
+    }
+
+    body {
+      font-family: 'Outfit', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, var(--bg-1), var(--bg-2));
+      color: var(--text);
+      min-height: 100vh;
+      overflow: hidden;
+      transition: background 0.5s ease, color 0.5s ease;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* ===== SCREENS ===== */
+    .screen {
+      position: fixed; inset: 0;
+      display: none; align-items: center; justify-content: center;
+      z-index: 1;
+    }
+    .screen.active { display: flex; }
+
+    /* ===== MENU SCREEN ===== */
+    #menu-screen { flex-direction: column; }
+    .menu-bg {
+      position: absolute; inset: 0; overflow: hidden;
+      background: linear-gradient(-45deg, var(--bg-1), var(--bg-2), var(--bg-1));
+      background-size: 400% 400%;
+      animation: gradShift 18s ease infinite;
+    }
+    @keyframes gradShift {
+      0%,100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+    .bg-circle {
+      position: absolute; border-radius: 50%;
+      background: var(--circle-c);
+      pointer-events: none;
+      animation: floatCircle 10s ease-in-out infinite;
+    }
+    @keyframes floatCircle {
+      0%,100% { transform: translateY(0) scale(1); opacity: 0.5; }
+      50% { transform: translateY(-25px) scale(1.12); opacity: 1; }
+    }
+
+    .menu-card {
+      position: relative; z-index: 2;
+      background: var(--card);
+      backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--card-b);
+      border-radius: 28px;
+      padding: 52px 60px;
+      text-align: center;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.08);
+      animation: cardSlideIn 0.7s cubic-bezier(0.16,1,0.3,1) backwards;
+    }
+    @keyframes cardSlideIn {
+      from { transform: translateY(36px) scale(0.96); opacity: 0; }
+    }
+
+    .menu-title {
+      font-size: 3.4rem; font-weight: 800;
+      letter-spacing: 8px; text-transform: uppercase;
+      background: linear-gradient(135deg, var(--text), var(--accent));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 6px;
+    }
+    .menu-sub {
+      font-size: 1rem; color: var(--text2);
+      font-weight: 300; letter-spacing: 1px;
+      margin-bottom: 40px;
+    }
+
+    /* ===== BUTTONS ===== */
+    .btn {
+      display: block; width: 100%;
+      padding: 15px 32px; margin: 10px 0;
+      background: var(--btn);
+      border: 1px solid var(--card-b);
+      border-radius: 14px;
+      color: var(--text); font-family: inherit;
+      font-size: 1rem; font-weight: 600;
+      letter-spacing: 1.5px; cursor: pointer;
+      transition: all 0.22s ease;
+    }
+    .btn:hover {
+      background: var(--btn-h);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+    }
+    .btn:active { transform: translateY(0); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff; border-color: transparent;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    }
+    .btn-primary:hover {
+      filter: brightness(1.08);
+      box-shadow: 0 6px 24px rgba(0,0,0,0.15);
+    }
+
+    /* ===== MODAL ===== */
+    .modal {
+      position: fixed; inset: 0;
+      display: none; align-items: center; justify-content: center;
+      z-index: 100;
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(5px);
+    }
+    .modal.active { display: flex; }
+    .modal-card {
+      background: var(--overlay);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--card-b);
+      border-radius: 22px;
+      padding: 36px 40px;
+      max-width: 440px; width: 92%;
+      max-height: 82vh; overflow-y: auto;
+      animation: cardSlideIn 0.4s ease;
+    }
+    .modal-card h2 {
+      font-size: 1.6rem; font-weight: 700;
+      margin-bottom: 20px;
+      background: linear-gradient(135deg, var(--text), var(--accent));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .modal-card h3 { font-size: 0.95rem; color: var(--accent); margin: 18px 0 8px; font-weight: 600; }
+    .modal-card p { font-size: 0.9rem; line-height: 1.7; color: var(--text2); }
+    .modal-card ul { list-style: none; padding: 0; }
+    .modal-card li {
+      font-size: 0.9rem; line-height: 1.8; color: var(--text2);
+      padding-left: 16px; position: relative;
+    }
+    .modal-card li::before {
+      content: ''; position: absolute; left: 0; top: 10px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent);
+    }
+
+    /* ===== GAME SCREEN ===== */
+    #game-screen {
+      flex-direction: column;
+      background: linear-gradient(135deg, var(--bg-1), var(--bg-2));
+      padding: 14px;
+      gap: 14px;
+    }
+    .game-header {
+      display: flex; justify-content: space-between; align-items: center;
+      width: 100%; max-width: 900px;
+      padding: 12px 22px;
+      background: var(--card);
+      backdrop-filter: blur(12px);
+      border-radius: 14px;
+      border: 1px solid var(--card-b);
+    }
+    .level-label {
+      font-weight: 700; font-size: 1.05rem;
+      color: var(--accent); letter-spacing: 2px; text-transform: uppercase;
+    }
+    .timer {
+      font-weight: 600; font-size: 1.25rem;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 2px;
+    }
+
+    .game-body { display: flex; gap: 14px; align-items: flex-start; }
+
+    #game-canvas {
+      border-radius: 14px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+      display: block;
+    }
+
+    .legend-panel {
+      width: 190px; flex-shrink: 0;
+      background: var(--card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-b);
+      border-radius: 14px;
+      padding: 18px;
+    }
+    .legend-title {
+      font-size: 0.8rem; font-weight: 700;
+      color: var(--accent); letter-spacing: 2.5px;
+      text-transform: uppercase; margin-bottom: 14px;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 3px 0; font-size: 0.82rem; font-weight: 500;
+    }
+    .legend-item span { opacity: 0.85; }
+    .legend-divider { height: 1px; background: var(--card-b); margin: 10px 0; }
+    .legend-section {
+      font-size: 0.7rem; color: var(--text2);
+      text-transform: uppercase; letter-spacing: 1.5px;
+      margin: 10px 0 6px; font-weight: 600;
+    }
+    .legend-item.new-entry { animation: legendPop 0.4s ease; }
+    @keyframes legendPop {
+      0% { transform: translateX(-8px); opacity: 0; }
+      100% { transform: translateX(0); opacity: 1; }
+    }
+
+    /* ===== TRANSITION SCREEN ===== */
+    #transition-screen {
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(10px);
+      z-index: 50;
+    }
+    .transition-inner {
+      text-align: center;
+      animation: transZoom 0.5s cubic-bezier(0.16,1,0.3,1);
+    }
+    @keyframes transZoom {
+      from { transform: scale(0.7); opacity: 0; }
+    }
+    .transition-inner h2 {
+      font-size: 2.6rem; font-weight: 800; color: #fff;
+      letter-spacing: 3px; margin-bottom: 8px;
+    }
+    .transition-inner p {
+      font-size: 1rem; color: rgba(255,255,255,0.6);
+      font-weight: 300;
+    }
+
+    /* ===== RESULT SCREEN ===== */
+    #result-screen {
+      background: linear-gradient(135deg, var(--bg-1), var(--bg-2));
+      z-index: 60;
+    }
+    .result-card {
+      background: var(--card);
+      backdrop-filter: blur(24px);
+      border: 1px solid var(--card-b);
+      border-radius: 28px;
+      padding: 52px 56px;
+      text-align: center;
+      animation: cardSlideIn 0.6s cubic-bezier(0.16,1,0.3,1);
+      min-width: 340px;
+    }
+    .result-card h2 {
+      font-size: 2rem; font-weight: 800;
+      letter-spacing: 5px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 4px;
+    }
+    .result-label { font-size: 0.85rem; color: var(--text2); margin-bottom: 4px; font-weight: 400; }
+    .result-time {
+      font-size: 3.2rem; font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 3px; margin-bottom: 36px;
+    }
+    .result-btns { display: flex; gap: 12px; }
+    .result-btns .btn { flex: 1; }
+
+    /* ===== TOUCH CONTROLS ===== */
+    .touch-controls {
+      display: none; position: fixed;
+      bottom: 20px; left: 50%; transform: translateX(-50%);
+      z-index: 80;
+    }
+    .touch-grid {
+      display: grid;
+      grid-template-areas: ". up ." "left . right" ". down .";
+      gap: 5px;
+    }
+    .touch-btn {
+      width: 54px; height: 54px;
+      background: var(--btn); backdrop-filter: blur(8px);
+      border: 1px solid var(--card-b); border-radius: 14px;
+      font-size: 1.3rem; color: var(--text);
+      cursor: pointer; display: flex;
+      align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .touch-btn:active { background: var(--btn-h); transform: scale(0.9); }
+    [data-dir="up"]    { grid-area: up; }
+    [data-dir="left"]  { grid-area: left; }
+    [data-dir="right"] { grid-area: right; }
+    [data-dir="down"]  { grid-area: down; }
+    @media (hover: none) and (pointer: coarse) {
+      .touch-controls.show { display: block; }
+    }
+
+    /* ===== INTENSITY BAR ===== */
+    .intensity-bar-container {
+      width: 24px;
+      height: 100%;
+      background: var(--card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-b);
+      border-radius: 12px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      flex-shrink: 0;
+    }
+    .intensity-bar-fill {
+      width: 100%;
+      height: 0%;
+      background: linear-gradient(to top, #2D6A4F, #FFB703, #E63946);
+      border-radius: 0 0 10px 10px;
+      transition: height 0.1s ease;
+      z-index: 1;
+    }
+    body.dark .intensity-bar-fill {
+      background: linear-gradient(to top, #00B4D8, #FFD166, #FF6B6B);
+    }
+    .intensity-bar-label {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-90deg);
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: var(--text2);
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0.6;
+      z-index: 2;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 740px) {
+      .game-body { flex-direction: column; align-items: center; }
+      .legend-panel { width: 100%; max-width: 420px; }
+      .menu-card { padding: 36px 30px; }
+      .menu-title { font-size: 2.4rem; letter-spacing: 5px; }
+      .result-card { padding: 36px 30px; min-width: auto; width: 90%; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== MENU ==================== -->
+  <div id="menu-screen" class="screen active">
+    <div class="menu-bg" id="menu-bg"></div>
+    <div class="menu-card">
+      <h1 class="menu-title">Sound Map</h1>
+      <p class="menu-sub">A Sound Exploration Game</p>
+      <button class="btn btn-primary" id="btn-start">▶&ensp;START</button>
+      <button class="btn" id="btn-theme">☀&ensp;Light Mode</button>
+      <button class="btn" id="btn-howto">?&ensp;How to Play</button>
+    </div>
+  </div>
+
+  <!-- ==================== HOW TO PLAY ==================== -->
+  <div id="howto-modal" class="modal">
+    <div class="modal-card">
+      <h2>How to Play</h2>
+      <h3>🎮 Controls</h3>
+      <p>Use <strong>WASD</strong> or <strong>Arrow Keys</strong> to move through the maze.</p>
+      <h3>🔊 Objective</h3>
+      <p>Find 3 hidden sound sources (Red Balls) in each level by following audio cues.</p>
+      <h3>👂 Tips</h3>
+      <ul>
+        <li>Sounds get louder as you approach</li>
+        <li>Red Balls become more visible when nearby</li>
+        <li>Listen carefully to distinguish directions</li>
+        <li>Remember the paths you explore!</li>
+      </ul>
+      <h3>📍 Final Challenge</h3>
+      <p>All three mazes merge into one map. Navigate from <strong>Start</strong> to <strong>Finish</strong> using your memory of the maze layouts.</p>
+      <button class="btn" id="btn-howto-close" style="margin-top: 22px;">Got it!</button>
+    </div>
+  </div>
+
+  <!-- ==================== GAME ==================== -->
+  <div id="game-screen" class="screen">
+    <div class="game-header">
+      <div class="level-label" id="level-label">Level 1</div>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div class="timer" id="timer">00:00.00</div>
+        <button id="btn-fullscreen" style="background: none; border: none; color: var(--text); cursor: pointer; font-size: 1.25rem; display: flex; align-items: center; justify-content: center; padding: 4px; transition: transform 0.2s;" title="Toggle Fullscreen">📺</button>
+      </div>
+    </div>
+    <div class="game-body">
+      <div class="intensity-bar-container" id="intensity-bar">
+        <div class="intensity-bar-fill" id="intensity-bar-fill"></div>
+        <div class="intensity-bar-label">INTENSITY</div>
+      </div>
+      <canvas id="game-canvas" width="600" height="600"></canvas>
+      <div class="legend-panel">
+        <div class="legend-title">Legend</div>
+        <div id="legend-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TRANSITION ==================== -->
+  <div id="transition-screen" class="screen">
+    <div class="transition-inner">
+      <h2 id="transition-text">Level Complete!</h2>
+      <p id="transition-sub">Loading next level…</p>
+    </div>
+  </div>
+
+  <!-- ==================== RESULT ==================== -->
+  <div id="result-screen" class="screen">
+    <div class="result-card">
+      <h2>COMPLETE!</h2>
+      <div class="result-label">Total Time</div>
+      <div class="result-time" id="result-time">00:00.00</div>
+      <div class="result-btns">
+        <button class="btn btn-primary" id="btn-restart">↻&ensp;Restart</button>
+        <button class="btn" id="btn-menu">Main Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TOUCH CONTROLS ==================== -->
+  <div class="touch-controls" id="touch-controls">
+    <div class="touch-grid">
+      <button class="touch-btn" data-dir="up">↑</button>
+      <button class="touch-btn" data-dir="left">←</button>
+      <button class="touch-btn" data-dir="right">→</button>
+      <button class="touch-btn" data-dir="down">↓</button>
+    </div>
+  </div>
+
+<script>
+/* =================================================================
+   MAZE DEFINITIONS — 15×15 grids (1 = wall, 0 = path)
+   Center cell (7,7) is always a path for player spawn.
+   ================================================================= */
+const MAZES = [
+  null, // index-0 placeholder
+  // ---------- LEVEL 1 ----------
+  [
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,1,0,1,0,0,0,0,0,1],
+    [1,0,1,1,1,0,1,0,1,0,1,1,1,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,1,0,1,1,1,0,1,1,1,0,1,0,1],
+    [1,0,1,0,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,1,1,1,0,1,0,1,0,1,1,1,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,1,1,1,0,1,0,1,0,1,1,1,0,1],
+    [1,0,1,0,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,1,0,1,1,1,0,1,1,1,0,1,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,1,1,1,0,1,0,1,0,1,1,1,0,1],
+    [1,0,0,0,0,0,1,0,1,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  ],
+  // ---------- LEVEL 2 ----------
+  [
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,1,0,1,1,1,1,1,1,1,0,1,0,1],
+    [1,0,1,0,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,1,0,1,0,1,1,1,0,1,0,1,0,1],
+    [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+    [1,1,1,0,1,1,1,0,1,1,1,0,1,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,0,1,1,1,0,1,1,1,0,1,1,1],
+    [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+    [1,0,1,0,1,0,1,1,1,0,1,0,1,0,1],
+    [1,0,1,0,0,0,0,0,0,0,0,0,1,0,1],
+    [1,0,1,0,1,1,1,1,1,1,1,0,1,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  ],
+  // ---------- LEVEL 3 ----------
+  [
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+    [1,0,1,0,0,0,1,0,1,0,0,0,1,0,1],
+    [1,0,1,1,1,0,1,0,1,0,1,1,1,0,1],
+    [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+    [1,1,1,0,1,0,1,0,1,0,1,0,1,1,1],
+    [1,0,0,0,0,0,1,0,1,0,0,0,0,0,1],
+    [1,0,1,0,1,0,0,0,0,0,1,0,1,0,1],
+    [1,0,0,0,0,0,1,0,1,0,0,0,0,0,1],
+    [1,1,1,0,1,0,1,0,1,0,1,0,1,1,1],
+    [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+    [1,0,1,1,1,0,1,0,1,0,1,1,1,0,1],
+    [1,0,1,0,0,0,1,0,1,0,0,0,1,0,1],
+    [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  ],
+];
+
+/* Red Ball positions per level (x = col, y = row) */
+const BALL_POS = [
+  null,
+  [{x:13, y:1},  {x:1, y:13}, {x:9, y:5}],   // Level 1
+  [{x:7,  y:1},  {x:1, y:9},  {x:13, y:13}],  // Level 2
+  [{x:1,  y:1},  {x:13, y:7}, {x:7, y:13}],   // Level 3
+];
+
+/* Sound assignments per theme per level */
+const SOUNDS = {
+  light: [
+    null,
+    ['Bulbul', 'Koel', 'Crow'],
+    ['Sunbird', 'Crickets', 'Dog Barking'],
+    ['Leaves Crumbling', 'Cow Mooing', 'Prayer'],
+  ],
+  dark: [
+    null,
+    ['Train Horn', 'Crowd', 'Heavy Machinery'],
+    ['Bus Horn', 'Bike Passing', 'Hammering'],
+    ['Vehicle Passing', 'Koel', 'Parrots'],
+  ],
+};
+
+/* Legend icon and label for each sound */
+const SMETA = {
+  'Bulbul':           { i: '🐦', l: 'Bulbul' },
+  'Koel':             { i: '🐦', l: 'Koel' },
+  'Crow':             { i: '🐦', l: 'Crow' },
+  'Sunbird':          { i: '🐦', l: 'Sunbird' },
+  'Dog Barking':      { i: '🐶', l: 'Dog' },
+  'Cow Mooing':       { i: '🐄', l: 'Cow' },
+  'Crickets':         { i: '🦗', l: 'Crickets' },
+  'Leaves Crumbling': { i: '🍃', l: 'Leaves' },
+  'Prayer':           { i: '🙏', l: 'Prayer' },
+  'Train Horn':       { i: '🚆', l: 'Train' },
+  'Bus Horn':         { i: '🚌', l: 'Bus' },
+  'Crowd':            { i: '👥', l: 'Crowd' },
+  'Heavy Machinery':  { i: '⚙️', l: 'Machinery' },
+  'Bike Passing':     { i: '🏍️', l: 'Bike' },
+  'Hammering':        { i: '🔨', l: 'Hammering' },
+  'Vehicle Passing':  { i: '🚗', l: 'Vehicle' },
+  'Parrots':          { i: '🦜', l: 'Parrots' },
+};
+
+/* Final level entry / exit points */
+const POINT_A = { x: 1, y: 1 };
+const POINT_B = { x: 22, y: 31 };
+
+/* =================================================================
+   GAME STATE
+   ================================================================= */
+const G = {
+  screen: 'menu',
+  dark: false,
+  level: 1,
+  maze: null,
+  px: 7, py: 7,       // grid position
+  vpx: 7, vpy: 7,     // visual (lerp'd) position
+  balls: [],           // { x, y, sound, collected, audio }
+  discovered: [],      // sound names found so far
+  timerStart: 0,
+  elapsed: 0,
+  running: false,
+  animId: null,
+  lastMove: 0,
+  transitioning: false,
+};
+
+/* =================================================================
+   MERGE FUNCTION — build the 33×33 final level
+   Layout:
+     Level 1 (rows 0-14, cols 0-14)   |  gap  |  Level 2 (rows 0-14, cols 18-32)
+     ------- gap (rows 15-17) -------
+     Level 3 (rows 18-32, cols 9-23)
+   Corridors connect them.
+   ================================================================= */
+function buildFinalMaze() {
+  const S = 33;
+  const g = Array.from({ length: S }, () => Array(S).fill(1));
+
+  // Copy individual mazes into position
+  for (let r = 0; r < 15; r++)
+    for (let c = 0; c < 15; c++) {
+      g[r][c]      = MAZES[1][r][c];      // Level 1
+      g[r][c + 18] = MAZES[2][r][c];      // Level 2
+      g[r + 18][c + 9] = MAZES[3][r][c];  // Level 3
+    }
+
+  // Horizontal corridor: Level 1 ↔ Level 2 at row 7
+  g[7][14] = 0;  // open L1 right border
+  g[7][15] = 0;  g[7][16] = 0;  g[7][17] = 0;  // corridor
+  g[7][18] = 0;  // open L2 left border
+
+  // Vertical corridor: Level 1 ↔ Level 3 at col 11
+  g[14][11] = 0; // open L1 bottom border
+  g[15][11] = 0;  g[16][11] = 0;  g[17][11] = 0;  // corridor
+  g[18][11] = 0; // open L3 top border (L3 col 2)
+
+  // Vertical corridor: Level 2 ↔ Level 3 at col 21
+  g[14][21] = 0; // open L2 bottom border (L2 col 3)
+  g[15][21] = 0;  g[16][21] = 0;  g[17][21] = 0;  // corridor
+  g[18][21] = 0; // open L3 top border (L3 col 12)
+
+  return g;
+}
+
+/* =================================================================
+   CANVAS SETUP & RENDERING
+   ================================================================= */
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+let cellSize = 0;
+let displaySize = 0;
+let mazeCache = null;   // offscreen canvas for static maze
+
+function resizeCanvas() {
+  if (!G.maze) return;
+  const maxDim = Math.max(G.maze.length, G.maze[0].length);
+  const maxW = window.innerWidth - 280;
+  const maxH = window.innerHeight - 110;
+  displaySize = Math.min(maxW, maxH);
+  displaySize = Math.max(displaySize, 280);
+  cellSize = displaySize / maxDim;
+
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width  = displaySize * dpr;
+  canvas.height = displaySize * dpr;
+  canvas.style.width  = displaySize + 'px';
+  canvas.style.height = displaySize + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  mazeCache = null;
+
+  const bar = document.getElementById('intensity-bar');
+  if (bar) {
+    bar.style.height = displaySize + 'px';
+  }
+}
+
+function css(v) {
+  return getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+}
+
+/* Pre-render static maze walls/paths to an offscreen canvas */
+function cacheMaze() {
+  const dpr = window.devicePixelRatio || 1;
+  const off = document.createElement('canvas');
+  off.width  = displaySize * dpr;
+  off.height = displaySize * dpr;
+  const c = off.getContext('2d');
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const pathCol = css('--path');
+  const wallCol = css('--wall');
+  const wallHi  = css('--wall-hi');
+  const wallLo  = css('--wall-lo');
+  const maze = G.maze;
+  const rows = maze.length, cols = maze[0].length;
+
+  // Fill background (path color)
+  c.fillStyle = pathCol;
+  c.fillRect(0, 0, displaySize, displaySize);
+
+  // Draw walls
+  const r = Math.max(2, cellSize * 0.12);
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      if (maze[row][col] !== 1) continue;
+      const x = col * cellSize, y = row * cellSize;
+      const s = cellSize;
+      const inset = Math.max(0.5, s * 0.04);
+
+      // Main block
+      c.fillStyle = wallCol;
+      c.beginPath();
+      c.roundRect(x + inset, y + inset, s - inset * 2, s - inset * 2, r);
+      c.fill();
+
+      // Top highlight
+      c.fillStyle = wallHi;
+      const h = Math.max(1, s * 0.07);
+      c.fillRect(x + inset + 2, y + inset + 1, s - inset * 2 - 4, h);
+
+      // Bottom shadow
+      c.fillStyle = wallLo;
+      c.fillRect(x + inset + 2, y + s - inset - 1 - h, s - inset * 2 - 4, h);
+    }
+  }
+
+  mazeCache = off;
+}
+
+/* Opacity based on distance (design-doc thresholds) */
+function getOpacity(dist) {
+  if (dist > 4) return 0.0;
+  if (dist <= 1) return 1.0;
+  if (dist <= 2) return 0.7;
+  if (dist <= 3) return 0.4;
+  return 0.1;
+}
+
+/* Format milliseconds as MM:SS.cs */
+function fmtTime(ms) {
+  const m  = Math.floor(ms / 60000);
+  const s  = Math.floor((ms % 60000) / 1000);
+  const cs = Math.floor((ms % 1000) / 10);
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(cs).padStart(2,'0')}`;
+}
+
+/* Main render loop */
+function renderFrame(ts) {
+  G.animId = requestAnimationFrame(renderFrame);
+  if (G.screen !== 'game') return;
+
+  // Smooth player lerp
+  const lerp = 0.3;
+  G.vpx += (G.px - G.vpx) * lerp;
+  G.vpy += (G.py - G.vpy) * lerp;
+  if (Math.abs(G.px - G.vpx) < 0.03) G.vpx = G.px;
+  if (Math.abs(G.py - G.vpy) < 0.03) G.vpy = G.py;
+
+  // Cached maze background
+  if (!mazeCache) cacheMaze();
+  ctx.drawImage(mazeCache, 0, 0, displaySize, displaySize);
+
+  // ---- Final-level markers ----
+  if (G.level === 4) {
+    const fs = Math.max(10, cellSize * 0.72);
+    ctx.font = `${fs}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('📍', POINT_A.x * cellSize + cellSize / 2, POINT_A.y * cellSize + cellSize / 2);
+    
+    const allCollected = G.balls.every(b => b.collected);
+    ctx.save();
+    if (!allCollected) {
+      ctx.globalAlpha = 0.25;
+    } else {
+      ctx.globalAlpha = 1.0;
+      if (Math.floor(ts / 250) % 2 === 0) {
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = css('--accent');
+      }
+    }
+    ctx.fillText('🏁', POINT_B.x * cellSize + cellSize / 2, POINT_B.y * cellSize + cellSize / 2);
+    ctx.restore();
+
+    // Show warning if standing on the locked exit
+    if (G.px === POINT_B.x && G.py === POINT_B.y && !allCollected) {
+      ctx.save();
+      ctx.fillStyle = css('--red');
+      ctx.font = 'bold 16px Outfit';
+      ctx.textAlign = 'center';
+      ctx.fillText('Find all 9 sounds first!', displaySize / 2, displaySize / 2 - 40);
+      ctx.restore();
+    }
+  }
+
+  // ---- Red Balls ----
+  const redCol = css('--red');
+  for (const b of G.balls) {
+    if (b.collected) continue;
+    const dist = Math.hypot(G.px - b.x, G.py - b.y);
+    const opacity = getOpacity(dist);
+    const pulse = 1 + Math.sin(ts / 400) * 0.09;
+    const rad = cellSize / 3 * pulse;
+
+    ctx.save();
+    ctx.globalAlpha = opacity;
+    if (opacity > 0.25) {
+      ctx.shadowBlur = 14 * opacity;
+      ctx.shadowColor = redCol;
+    }
+    ctx.fillStyle = redCol;
+    ctx.beginPath();
+    ctx.arc(b.x * cellSize + cellSize / 2, b.y * cellSize + cellSize / 2, rad, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ---- Player ----
+  const pCol  = css('--player');
+  const pGlow = css('--player-glow');
+  const pPulse = 1 + Math.sin(ts / 600) * 0.06;
+  const pRad = cellSize / 2.8 * pPulse;
+  const cx = G.vpx * cellSize + cellSize / 2;
+  const cy = G.vpy * cellSize + cellSize / 2;
+
+  ctx.save();
+  ctx.shadowBlur = 18 * pPulse;
+  ctx.shadowColor = pGlow;
+  ctx.fillStyle = pCol;
+  ctx.beginPath();
+  ctx.arc(cx, cy, pRad, 0, Math.PI * 2);
+  ctx.fill();
+  // Inner highlight
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(255,255,255,0.28)';
+  ctx.beginPath();
+  ctx.arc(cx - pRad * 0.2, cy - pRad * 0.2, pRad * 0.38, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // ---- Timer ----
+  if (G.running) {
+    G.elapsed = Date.now() - G.timerStart;
+    document.getElementById('timer').textContent = fmtTime(G.elapsed);
+  }
+
+  // ---- Audio volumes ----
+  updateVolumes();
+}
+
+/* =================================================================
+   AUDIO SYSTEM
+   ================================================================= */
+let audioCtx = null;
+
+function getSoundPath(name) {
+  const folder = G.dark ? 'dark mode' : 'light mode';
+  return `Audio Sound Map/${folder}/${name}.mp3`;
+}
+
+function ensureAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function loadLevelSounds() {
+  for (const b of G.balls) {
+    try {
+      const a = new Audio(getSoundPath(b.sound));
+      a.loop = true;
+      a.volume = 0;
+      b.audio = a;
+      a.play().catch(() => {});
+    } catch (e) {
+      console.warn('Audio failed:', b.sound, e);
+      b.audio = null;
+    }
+  }
+}
+
+function updateVolumes() {
+  const maxDist = G.maze ? G.maze.length * 1.0 : 15;
+  let maxVol = 0;
+  for (const b of G.balls) {
+    if (b.collected || !b.audio) continue;
+    const dist = Math.hypot(G.px - b.x, G.py - b.y);
+    const vol = Math.pow(Math.max(0, 1 - dist / maxDist), 2);
+    b.audio.volume = Math.min(1, vol);
+    if (vol > maxVol) maxVol = vol;
+  }
+  const fill = document.getElementById('intensity-bar-fill');
+  if (fill) {
+    fill.style.height = (maxVol * 100).toFixed(1) + '%';
+  }
+}
+
+function stopAllSounds() {
+  for (const b of G.balls) {
+    if (b.audio) { b.audio.pause(); b.audio.currentTime = 0; }
+  }
+}
+
+/* Synthesised SFX */
+function sfxCollect() {
+  if (!audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.connect(g); g.connect(audioCtx.destination);
+    const t = audioCtx.currentTime;
+    osc.frequency.setValueAtTime(523, t);
+    osc.frequency.linearRampToValueAtTime(1047, t + 0.12);
+    g.gain.setValueAtTime(0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+    osc.start(t); osc.stop(t + 0.28);
+  } catch(_) {}
+}
+
+function sfxComplete() {
+  if (!audioCtx) return;
+  try {
+    [523, 659, 784, 1047].forEach((f, i) => {
+      const osc = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.connect(g); g.connect(audioCtx.destination);
+      const t = audioCtx.currentTime + i * 0.1;
+      osc.frequency.setValueAtTime(f, t);
+      g.gain.setValueAtTime(0.18, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+      osc.start(t); osc.stop(t + 0.28);
+    });
+  } catch(_) {}
+}
+
+/* =================================================================
+   GAME LOGIC
+   ================================================================= */
+function initLevel(lvl) {
+  G.level = lvl;
+
+  if (lvl <= 3) {
+    G.maze = MAZES[lvl].map(r => [...r]);
+    G.px = G.py = G.vpx = G.vpy = 7;
+
+    const theme = G.dark ? 'dark' : 'light';
+    const names = SOUNDS[theme][lvl];
+    const pos   = BALL_POS[lvl];
+    G.balls = pos.map((p, i) => ({ x: p.x, y: p.y, sound: names[i], collected: false, audio: null }));
+    document.getElementById('level-label').textContent = `Level ${lvl}`;
+  } else {
+    G.maze = buildFinalMaze();
+    G.px = POINT_A.x; G.py = POINT_A.y;
+    G.vpx = POINT_A.x; G.vpy = POINT_A.y;
+    
+    const theme = G.dark ? 'dark' : 'light';
+    const b1 = BALL_POS[1].map((p, i) => ({ x: p.x,      y: p.y,      sound: SOUNDS[theme][1][i], collected: false, audio: null }));
+    const b2 = BALL_POS[2].map((p, i) => ({ x: p.x + 18, y: p.y,      sound: SOUNDS[theme][2][i], collected: false, audio: null }));
+    const b3 = BALL_POS[3].map((p, i) => ({ x: p.x + 9,  y: p.y + 18, sound: SOUNDS[theme][3][i], collected: false, audio: null }));
+    G.balls = [...b1, ...b2, ...b3];
+
+    document.getElementById('level-label').textContent = 'Full Map';
+  }
+
+  resizeCanvas();
+  updateLegend();
+  loadLevelSounds();
+}
+
+function tryMove(dx, dy) {
+  if (G.transitioning) return;
+  const nx = G.px + dx, ny = G.py + dy;
+  const maze = G.maze;
+  if (ny < 0 || ny >= maze.length || nx < 0 || nx >= maze[0].length) return;
+  if (maze[ny][nx] !== 0) return;
+  G.px = nx; G.py = ny;
+  checkCollect();
+  checkFinish();
+}
+
+function checkCollect() {
+  for (const b of G.balls) {
+    if (b.collected || b.x !== G.px || b.y !== G.py) continue;
+    b.collected = true;
+    if (b.audio) { b.audio.pause(); b.audio.currentTime = 0; }
+    sfxCollect();
+    if (!G.discovered.includes(b.sound)) G.discovered.push(b.sound);
+    updateLegend();
+
+    if (G.balls.every(b => b.collected)) {
+      if (G.level < 4) {
+        G.transitioning = true;
+        setTimeout(() => levelComplete(), 500);
+      }
+    }
+  }
+}
+
+function checkFinish() {
+  if (G.level === 4 && G.px === POINT_B.x && G.py === POINT_B.y) {
+    if (!G.balls.every(b => b.collected)) return;
+    G.running = false;
+    G.transitioning = true;
+    sfxComplete();
+    setTimeout(() => showResult(), 700);
+  }
+}
+
+function levelComplete() {
+  stopAllSounds();
+  sfxComplete();
+
+  showScreen('transition');
+  if (G.level < 3) {
+    document.getElementById('transition-text').textContent = `Level ${G.level} Complete!`;
+    document.getElementById('transition-sub').textContent = 'Loading next level…';
+  } else if (G.level === 3) {
+    document.getElementById('transition-text').textContent = 'Level 3 Complete!';
+    document.getElementById('transition-sub').textContent = 'Preparing the full map…';
+  }
+
+  setTimeout(() => {
+    G.transitioning = false;
+    initLevel(G.level + 1);
+    showScreen('game');
+  }, 2200);
+}
+
+function showResult() {
+  G.running = false;
+  G.transitioning = false;
+  stopAllSounds();
+  document.getElementById('result-time').textContent = fmtTime(G.elapsed);
+  showScreen('result');
+}
+
+function enterFullscreen() {
+  const docEl = document.documentElement;
+  try {
+    if (docEl.requestFullscreen) docEl.requestFullscreen();
+    else if (docEl.webkitRequestFullscreen) docEl.webkitRequestFullscreen();
+  } catch (e) {
+    console.warn("Fullscreen request failed", e);
+  }
+}
+
+function exitFullscreen() {
+  try {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      if (document.exitFullscreen) document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    }
+  } catch (e) {
+    console.warn("Fullscreen exit failed", e);
+  }
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    enterFullscreen();
+  } else {
+    exitFullscreen();
+  }
+}
+
+function startGame() {
+  ensureAudioCtx();
+  enterFullscreen();
+  G.discovered = [];
+  G.elapsed = 0;
+  G.timerStart = Date.now();
+  G.running = true;
+  G.transitioning = false;
+  document.getElementById('timer').textContent = '00:00.00';
+  initLevel(1);
+  showScreen('game');
+  document.getElementById('touch-controls').classList.add('show');
+  if (!G.animId) G.animId = requestAnimationFrame(renderFrame);
+}
+
+function restartGame() {
+  stopAllSounds();
+  enterFullscreen();
+  G.discovered = [];
+  G.elapsed = 0;
+  G.timerStart = Date.now();
+  G.running = true;
+  G.transitioning = false;
+  document.getElementById('timer').textContent = '00:00.00';
+  initLevel(1);
+  showScreen('game');
+  document.getElementById('touch-controls').classList.add('show');
+  if (!G.animId) G.animId = requestAnimationFrame(renderFrame);
+}
+
+function backToMenu() {
+  stopAllSounds();
+  G.running = false;
+  G.transitioning = false;
+  document.getElementById('touch-controls').classList.remove('show');
+  exitFullscreen();
+  showScreen('menu');
+}
+
+/* =================================================================
+   LEGEND
+   ================================================================= */
+function updateLegend() {
+  const el = document.getElementById('legend-content');
+  let h = '';
+
+  h += `<div class="legend-item">👤 <span>You</span></div>`;
+
+  if (G.level <= 4) {
+    const rem = G.balls.filter(b => !b.collected).length;
+    h += `<div class="legend-item">🔴 <span>Sound Source (${rem})</span></div>`;
+  }
+
+  h += `<div class="legend-item">📍 <span>Start</span></div>`;
+  if (G.level === 4) h += `<div class="legend-item">🏁 <span>Finish</span></div>`;
+
+  const showDiscovered = (G.level !== 4) || G.balls.every(b => b.collected);
+  if (showDiscovered && G.discovered.length) {
+    h += `<div class="legend-divider"></div>`;
+    h += `<div class="legend-section">Discovered</div>`;
+    for (const s of G.discovered) {
+      const m = SMETA[s];
+      if (m) h += `<div class="legend-item new-entry">${m.i} <span>${m.l}</span></div>`;
+    }
+  }
+
+  el.innerHTML = h;
+}
+
+/* =================================================================
+   SCREEN MANAGEMENT
+   ================================================================= */
+function showScreen(name) {
+  G.screen = name;
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById(name + '-screen');
+  if (el) el.classList.add('active');
+}
+
+/* =================================================================
+   INPUT — Keyboard
+   ================================================================= */
+const DIR = {
+  ArrowUp:   { dx:  0, dy: -1 }, w: { dx:  0, dy: -1 }, W: { dx:  0, dy: -1 },
+  ArrowDown: { dx:  0, dy:  1 }, s: { dx:  0, dy:  1 }, S: { dx:  0, dy:  1 },
+  ArrowLeft: { dx: -1, dy:  0 }, a: { dx: -1, dy:  0 }, A: { dx: -1, dy:  0 },
+  ArrowRight:{ dx:  1, dy:  0 }, d: { dx:  1, dy:  0 }, D: { dx:  1, dy:  0 },
+};
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { if (G.screen === 'game') backToMenu(); return; }
+  
+  if (e.key === 'N' && e.shiftKey) {
+    if (G.screen === 'game') {
+      if (G.level < 4) levelComplete();
+      else showResult();
+      return;
+    }
+  }
+  if (e.key === 'C' && e.shiftKey) {
+    if (G.screen === 'game') {
+      for (const b of G.balls) {
+        b.collected = true;
+        if (b.audio) { b.audio.pause(); b.audio.currentTime = 0; }
+      }
+      sfxCollect();
+      updateLegend();
+      if (G.level < 4) {
+        G.transitioning = true;
+        setTimeout(() => levelComplete(), 500);
+      }
+      return;
+    }
+  }
+
+  const d = DIR[e.key];
+  if (!d) return;
+  e.preventDefault();
+  if (!e.repeat && G.screen === 'game') {
+    tryMove(d.dx, d.dy);
+  }
+});
+
+/* =================================================================
+   INPUT — Touch
+   ================================================================= */
+document.querySelectorAll('.touch-btn').forEach(btn => {
+  const name = btn.dataset.dir;
+  const map = { up: { dx: 0, dy: -1 }, down: { dx: 0, dy: 1 }, left: { dx: -1, dy: 0 }, right: { dx: 1, dy: 0 } };
+  const go = (e) => {
+    e.preventDefault();
+    if (G.screen !== 'game') return;
+    const d = map[name];
+    tryMove(d.dx, d.dy);
+  };
+  btn.addEventListener('touchstart', go, { passive: false });
+  btn.addEventListener('click', (e) => {
+    if (e.pointerType === 'touch') return;
+    if (G.screen !== 'game') return;
+    const d = map[name];
+    tryMove(d.dx, d.dy);
+  });
+});
+
+/* =================================================================
+   UI EVENTS
+   ================================================================= */
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-restart').addEventListener('click', restartGame);
+document.getElementById('btn-menu').addEventListener('click', backToMenu);
+
+document.getElementById('btn-theme').addEventListener('click', () => {
+  G.dark = !G.dark;
+  document.body.classList.toggle('dark', G.dark);
+  document.getElementById('btn-theme').textContent = G.dark ? '🌙\u2002Dark Mode' : '☀\u2002Light Mode';
+  mazeCache = null;
+});
+
+document.getElementById('btn-howto').addEventListener('click', () => {
+  document.getElementById('howto-modal').classList.add('active');
+});
+document.getElementById('btn-howto-close').addEventListener('click', () => {
+  document.getElementById('howto-modal').classList.remove('active');
+});
+document.getElementById('howto-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.remove('active');
+});
+
+window.addEventListener('resize', () => { if (G.screen === 'game') resizeCanvas(); });
+
+document.getElementById('btn-fullscreen').addEventListener('click', toggleFullscreen);
+
+function onFullscreenChange() {
+  const btn = document.getElementById('btn-fullscreen');
+  if (btn) {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      btn.textContent = '❌';
+      btn.title = 'Exit Fullscreen';
+    } else {
+      btn.textContent = '📺';
+      btn.title = 'Enter Fullscreen';
+    }
+  }
+  if (G.screen === 'game') {
+    resizeCanvas();
+  }
+}
+
+document.addEventListener('fullscreenchange', onFullscreenChange);
+document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+
+/* =================================================================
+   INIT — background decoration
+   ================================================================= */
+(function initMenuDecor() {
+  const bg = document.getElementById('menu-bg');
+  for (let i = 0; i < 18; i++) {
+    const c = document.createElement('div');
+    c.className = 'bg-circle';
+    const sz = 30 + Math.random() * 140;
+    Object.assign(c.style, {
+      width: sz + 'px', height: sz + 'px',
+      left: Math.random() * 100 + '%', top: Math.random() * 100 + '%',
+      animationDelay: (Math.random() * 10).toFixed(1) + 's',
+      animationDuration: (7 + Math.random() * 8).toFixed(1) + 's',
+    });
+    bg.appendChild(c);
+  }
+})();
+
+showScreen('menu');
+</script>
+</body>
+</html>
